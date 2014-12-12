@@ -1,0 +1,26 @@
+main = bs (statement bs (';'/!.) bs)* !.;
+quotes = "'" ('\\'. / !'\\'!"'". / "''")* "'" !"'"
+       / '"' ('\\'. / !'\\'!'"'. / "\"\"")* '"' !'"';
+bs = space*; # @DISCARD
+space = ' ' / '\t' / '\n' / '\r' / '\v' / '\f' / comment;
+comment = "--" (!'\n'.)* ('\n'/!.)
+        / "/*" (!"*/".)* "*/";
+
+statement = begin_statement / insert_statement / start_statement / commit_statement;
+
+begin_statement = begin_kw bs work_kw?;
+# TODO: translate empty arg list insert into: INSERT INTO tbl_name DEFAULT VALUES;
+insert_statement = insert_kw bs (into_kw bs)? tbl_name bs
+                 ( '(' bs (col_name bs (',' bs col_name bs)*)? ')' bs )? values_kw bs
+                 '(' expr bs (','bs expr bs)* ')' (','bs '(' expr bs (','bs expr bs)* ')')*;
+start_statement = start_kw bs transaction_kw;
+commit_statement = commit_kw bs work_kw?;
+
+@KEYWORD all as asc authors binary by commit create desc distinct
+@KEYWORD from group having insert into limit local lock low offset
+@KEYWORD order read select show table tables temporary unlock values
+@KEYWORD where work write set update where
+
+tbl_name = identifier;
+identifier = ident_char* !ident_char / '`' (!'`'. | "``")* '`';
+ident_char = 'A'..'Z'/'a'..'z'/'0'..'9'/'_';
