@@ -169,6 +169,11 @@ struct ast * parse(const char * text, struct gram * gram, int * last) {
 
 void free_ast(struct ast * ast) {
   int i;
+  if (ast == NULL) {
+    fprintf(stderr, "ERROR: free_ast called with a NULL pointer. Avoiding SIGSEGV.\n");
+    fflush(stderr);
+    exit(1);
+  }
   for (i = 0; ast->children[i]; i++)
     free(ast->children[i]);
   free(ast);

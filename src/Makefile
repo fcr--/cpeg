@@ -1,4 +1,4 @@
-CFLAGS+=-Wall -Os
+CFLAGS+=-Wall -Os -ggdb
 LIBS=-lgramparser -L.
 
 all: gram-test gramparser-test gramparser-test2 gramparser-test3 gramparser-test4
@@ -31,4 +31,4 @@ gramparser.o: gramparser.c gramparser.h gram.h
 	$(CC) $< -o $@ -c $(CFLAGS)
 
 clean:
-	rm -f gram.o gramparser.o gram-test gramparser-test gramparser-test2 gramparser-test3
+	rm -f *.o *.a gram-test gramparser-test gramparser-test2 gramparser-test3

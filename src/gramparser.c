@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "gramparser.h"
 
@@ -210,8 +211,9 @@ struct gramparser * new_gramparser(void) {
   return gp;
 }
 
+#ifdef DEBUG
 static void print_string(void * gramptr) {
-  switch ((int)gramptr) {
+  switch ((intptr_t)gramptr) {
     case 0: puts("(nil)"); break;
     case ALT_GRAM: puts("ALT_GRAM"); break;
     case CAT_GRAM: puts("CAT_GRAM"); break;
@@ -229,11 +231,12 @@ static void print_string(void * gramptr) {
     default: puts("duhh!"); break;
   }
 }
+#endif
 
 static char decode_char(const char * def, struct ast * ast) {
   assert(def);
   assert(ast);
-  assert(CHAR_GRAM == (int)ast->user_data);
+  assert(CHAR_GRAM == (intptr_t)ast->user_data);
   assert(ast->len == 3 || (ast->len == 4 && def[ast->from+1] == '\\'));
   if (ast->len == 3)
     return def[ast->from + 1];
@@ -253,7 +256,7 @@ struct gram_thunk {
 static struct gram_thunk gram_from_ast(struct gramparser * gp, const char * def, struct ast * ast) {
   int children_count = 0;
   int i;
-  int type = (int)ast->user_data;
+  int type = (intptr_t)ast->user_data;
   while (ast->children[children_count])
     children_count++;
   // first, if there's only a single child for a few cases, just recurse.
@@ -329,11 +332,11 @@ static struct gram_thunk gram_from_ast(struct gramparser * gp, const char * def,
 	  res = new_gram_negla(NULL, child);
 	else if (type == POSLA_GRAM)
 	  res = new_gram_posla(NULL, child);
-	else if ((int)(ast->children[1]->user_data) == OPT_CUANT)
+	else if ((intptr_t)(ast->children[1]->user_data) == OPT_CUANT)
 	  res = new_gram_opt(NULL, child);
-	else if ((int)(ast->children[1]->user_data) == ASTER_CUANT)
+	else if ((intptr_t)(ast->children[1]->user_data) == ASTER_CUANT)
 	  res = new_gram_aster(NULL, child);
-	else if ((int)(ast->children[1]->user_data) == PLUS_CUANT)
+	else if ((intptr_t)(ast->children[1]->user_data) == PLUS_CUANT)
 	  res = new_gram_plus(NULL, child);
 	else {
 	  fprintf(stderr, "INTERNAL ERROR: Construction not allowed for cuant's children.\n");
