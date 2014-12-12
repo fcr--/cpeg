@@ -13,11 +13,7 @@ static void add_gram(struct gramparser * gp, const char * name, const char * def
   int i, res = gramparser_add(gp, name, def);
   if (res >= 0) {
     fprintf(stderr, "Error parsing non-terminal %s:\n", name);
-    fprintf(stderr, "\t%s\n\t", def);
-    for (i = 0; i < res; i++) {
-      fprintf(stderr, " ");
-    }
-    fprintf(stderr, "^\n");
+    fprintf(stderr, "\t%s\n\t%*s^\n", def, res, "");
     exit(1);
   }
 }
@@ -36,7 +32,11 @@ void colorize(char * text, int * cursor, struct ast * ast, int depth) {
   }
 }
 
-static void parse_file(struct gram * g, int delim, bool use_colorize, FILE * fd) {
+static void void_puts(void * str) {
+  puts((char *)str);
+}
+
+static void parse_file(struct gram * g, int delim, bool use_colorize, bool use_ast, bool quiet, FILE * fd) {
   static char * buffer = NULL;
   size_t buffer_size = 0;
   ssize_t res;
@@ -50,15 +50,20 @@ static void parse_file(struct gram * g, int delim, bool use_colorize, FILE * fd)
     int last;
     struct ast * raw_ast = parse(buffer, g, &last);
     if (raw_ast) {
-      if (use_colorize) {
-	struct ast * ast = purge_ast(raw_ast);
-	int cursor = 0;
-	colorize(buffer, &cursor, ast, 0);
-	printf("\033[0m%s%c", buffer + cursor, delim);
-	free_ast(ast);
-      } else {
-	printf("%s%c", buffer, delim);
+      struct ast * ast = purge_ast(raw_ast);
+      if (!quiet) {
+	if (use_colorize) {
+	  int cursor = 0;
+	  colorize(buffer, &cursor, ast, 0);
+	  printf("\033[0m%s%c", buffer + cursor, delim);
+	} else {
+	  printf("%s%c", buffer, delim);
+	}
       }
+      if (use_ast) {
+	dump_ast(ast, 2, &void_puts);
+      }
+      free_ast(ast);
       free_ast(raw_ast);
     }
   }
@@ -69,23 +74,33 @@ static void parse_file(struct gram * g, int delim, bool use_colorize, FILE * fd)
 }
 
 void print_help(const char * arg0) {
-  printf("Usage: %1$s [-z] [-c / -nc] {-nt name def}* main_def {file}*\n"
+  printf("Usage: %1$s [-z] [-c / -nc] [-ast] [-q] {-nt name def}* main_def {file}*\n"
       "Options:\n"
       "  -z        Use NUL byte as delimiter (instead of \\n).\n"
       "  -c / -nc  (Force / No) colorize.\n"
+      "  -ast      Print its Abstract Syntax Tree.\n"
+      "  -q        Don't print matched lines.\n"
       "Examples:\n"
-      "  %1$s '\"hello\"' file                 # starting with hello\n"
-      "  %1$s '(!\"hello\".)*\"hello\"' file     # lines containing hello\n"
-      "  %1$s -nt e '\"foo\"!.' '(!e.)*e' file # lines ending with foo\n"
-      "  %1$s -nt ab \"'a' ab 'b'\" 'ab!.'     # lines like ab, aabb, aaabbb, ...\n"
-      "  %1$s -nt nb '!(\"[\"/\"]\").' -nt m '\"[\" nb* m* \"]\" nb*' 'nb* m*!.' # lines with matching brackets\n",
+      "  %1$s '\"hello\"' file;                 : starting with hello\n"
+      "  %1$s '(!\"hello\".)*\"hello\"' file;     : lines containing hello\n"
+      "  %1$s -nt e '\"foo\"!.' '(!e.)*e' file; : lines ending with foo\n"
+      "  %1$s -nt ab \"'a' ab 'b'\" 'ab!.';     : lines like ab, aabb, aaabbb, ...\n"
+      "  %1$s -nt nb '!(\"[\"/\"]\").' -nt m '\"[\" nb* m* \"]\" nb*' 'nb* m*!.'; : lines with matching brackets\n"
+      "  echo '1+1*(2+1)+3' | %1$s -ast \\\n"
+      "     -nt atom  \"('0'..'9')+ / '('adds')'\" \\\n"
+      "     -nt mults 'atom (\"*\"atom)*' \\\n"
+      "     -nt adds  'mults (\"+\"mults)*'  'adds!.'; : parse natural arithmetic expressions\n",
       arg0);
+  // there are some pathological cases, for instance with exponential cpu & memory consumption:
+  // echo aaaaaaaaaaaaaaaaaaaaaaaaaa | ./peggrep -nt a '"a"(e/e/.)' -nt e '!(a"j")a' e
 }
 
 int main(int argc, char * argv[]) {
   init_gramparser();
   struct gramparser * gp = new_gramparser();
   bool use_colorize = !!isatty(1);
+  bool use_ast = false;
+  bool quiet = false;
   int i, main_grammar_arg_index = -1;
   int delim = '\n';
   for (i = 1; i < argc; i++) {
@@ -98,6 +113,10 @@ int main(int argc, char * argv[]) {
       use_colorize = true;
     } else if (!strcmp("-nc", argv[i])) {
       use_colorize = false;
+    } else if (!strcmp("-ast", argv[i])) {
+      use_ast = true;
+    } else if (!strcmp("-q", argv[i])) {
+      quiet = true;
     } else if (!strcmp("--help", argv[i]) || !strcmp("-help", argv[i])) {
       print_help(*argv);
       return 0;
@@ -117,14 +136,14 @@ int main(int argc, char * argv[]) {
   }
   struct gram * g = gramparser_get_gram(gp, "main");
   if (main_grammar_arg_index == argc - 1) {
-    parse_file(g, delim, use_colorize, stdin);
+    parse_file(g, delim, use_colorize, use_ast, quiet, stdin);
   } else {
     for (i = main_grammar_arg_index + 1; i < argc; i++) {
       FILE * fd = fopen(argv[i], "r");
       if (!fd) {
 	fprintf(stderr, "Failed opening file %s: %s\n", argv[i], strerror(errno));
       }
-      parse_file(g, delim, use_colorize, fd);
+      parse_file(g, delim, use_colorize, use_ast, quiet, fd);
       fclose(fd);
     }
   }
